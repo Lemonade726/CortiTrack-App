@@ -10,9 +10,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QTimer, QPointF
+from PyQt5.QtCore import Qt, QTimer, QPointF, QRectF
 from PyQt5.QtGui import (
-    QColor, QFont, QPainter, QPainterPath, QPen, QLinearGradient, QPixmap, QIcon
+    QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QLinearGradient,
+    QPixmap, QIcon
 )
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton, QLineEdit,
@@ -44,14 +45,17 @@ COLORS = {
     "cyan": "#0bc8ef",
     "blue": "#179aec",
     "deep_blue": "#2270c6",
-    "panel": "#E9FFFC",
-    "pink": "#D879C7",
-    "purple": "#634BA5",
+    "panel": "#ebfffe",
+    "pink": "#e087bc",
+    "purple": "#6f56ae",
+    "dark_purple": "#0a0648",
     "teal": "#33f4d7",
     "teal_dark": "#1ba68d",
-    "axis": "#179aec",
+    "dark_blue": "#100c4e",
+    "mid_blue": "#011b9e",
+    "light_blue": "#0075df",
     "black": "#050505",
-    "red": "#eb0057",
+    "red": "#fc003b",
     "orange": "#ffb300",
     "white": "#FFFFFF",
     "ink": "#10205E",
@@ -307,7 +311,11 @@ class TrendChart(QWidget):
         if right <= left or bottom <= top:
             return
 
-        axis_pen = QPen(QColor(COLORS["axis"]), 4, Qt.SolidLine, Qt.RoundCap)
+        axis_gradient = QLinearGradient(left, top, left, bottom)
+        axis_gradient.setColorAt(0, QColor(COLORS["dark_blue"]))
+        axis_gradient.setColorAt(0.45, QColor(COLORS["mid_blue"]))
+        axis_gradient.setColorAt(1, QColor(COLORS["light_blue"]))
+        axis_pen = QPen(QBrush(axis_gradient), 4, Qt.SolidLine, Qt.RoundCap)
         painter.setPen(axis_pen)
         painter.drawLine(left, top + 4, left, bottom)
         painter.drawLine(left, bottom, right, bottom)
@@ -398,11 +406,65 @@ class HeartWave(QWidget):
         painter.drawPath(path)
 
 
-class HeartRatePanel(QFrame):
+class GradientBorderFrame(QFrame):
+    """A frame with a vertically graded border painted directly by Qt."""
+
+    def __init__(
+        self, background_color, border_width=5, radius=18, parent=None,
+        background_gradient=None
+    ):
+        super().__init__(parent)
+        self.background_color = QColor(background_color)
+        self.background_gradient = background_gradient
+        self.border_width = border_width
+        self.radius = radius
+        self.setFrameShape(QFrame.NoFrame)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        outer = QRectF(self.rect())
+        inner = outer.adjusted(
+            self.border_width, self.border_width,
+            -self.border_width, -self.border_width
+        )
+        inner_radius = max(0, self.radius - self.border_width)
+
+        gradient = QLinearGradient(0, 0, 0, self.height())
+        gradient.setColorAt(0, QColor(COLORS["pink"]))
+        gradient.setColorAt(1, QColor(COLORS["purple"]))
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(gradient))
+        painter.drawRoundedRect(outer, self.radius, self.radius)
+        if self.background_gradient:
+            background = QLinearGradient(0, inner.top(), 0, inner.bottom())
+            background.setColorAt(
+                0, QColor(self.background_gradient[0])
+            )
+            background.setColorAt(
+                1, QColor(self.background_gradient[1])
+            )
+            painter.setBrush(QBrush(background))
+        else:
+            painter.setBrush(self.background_color)
+        painter.drawRoundedRect(inner, inner_radius, inner_radius)
+
+
+class HeartRatePanel(GradientBorderFrame):
     """Heart-rate card. Displays unavailable until actual HR data is provided."""
 
     def __init__(self):
-        super().__init__()
+        super().__init__(
+            COLORS["black"],
+            border_width=5,
+            radius=20,
+            background_gradient=(
+                COLORS["dark_purple"],
+                COLORS["black"],
+            ),
+        )
         self.setObjectName("heartPanel")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 14, 18, 14)
@@ -477,7 +539,7 @@ class CortiTrackWindow(QMainWindow):
         header.addWidget(logo)
         header.addStretch(1)
 
-        self.nav_dashboard = QPushButton("CORTI")
+        self.nav_dashboard = QPushButton("CORTISOL")
         self.nav_readings = QPushButton("READINGS")
         self.nav_sensor = QPushButton("SENSOR")
         self.nav_about = QPushButton("ABOUT")
@@ -546,14 +608,12 @@ class CortiTrackWindow(QMainWindow):
                 color: #053E53;
             }}
             QFrame#panel {{
-                background: {COLORS['panel']};
-                border: 4px solid {COLORS['pink']};
-                border-radius: 18px;
+                background: transparent;
+                border: none;
             }}
             QFrame#heartPanel {{
-                background: {COLORS['black']};
-                border: 5px solid {COLORS['pink']};
-                border-radius: 20px;
+                background: transparent;
+                border: none;
             }}
             QLabel#heartNumber {{
                 color: {COLORS['red']};
@@ -617,7 +677,7 @@ class CortiTrackWindow(QMainWindow):
         layout.setHorizontalSpacing(16)
         layout.setVerticalSpacing(16)
 
-        chart_panel = QFrame()
+        chart_panel = GradientBorderFrame(COLORS["panel"])
         chart_panel.setObjectName("panel")
         chart_layout = QVBoxLayout(chart_panel)
         chart_layout.setContentsMargins(16, 14, 16, 12)
@@ -642,7 +702,7 @@ class CortiTrackWindow(QMainWindow):
         self.heart_panel = HeartRatePanel()
         layout.addWidget(self.heart_panel, 0, 2, 1, 1)
 
-        info_panel = QFrame()
+        info_panel = GradientBorderFrame(COLORS["panel"])
         info_panel.setObjectName("panel")
         info_layout = QVBoxLayout(info_panel)
         info_layout.setContentsMargins(18, 14, 18, 14)
@@ -684,7 +744,7 @@ class CortiTrackWindow(QMainWindow):
         title.setObjectName("panelTitle")
         layout.addWidget(title)
 
-        form_frame = QFrame()
+        form_frame = GradientBorderFrame(COLORS["panel"])
         form_frame.setObjectName("panel")
         form = QGridLayout(form_frame)
         form.setContentsMargins(16, 16, 16, 16)
@@ -745,7 +805,7 @@ class CortiTrackWindow(QMainWindow):
         title.setObjectName("panelTitle")
         layout.addWidget(title)
 
-        panel = QFrame()
+        panel = GradientBorderFrame(COLORS["panel"])
         panel.setObjectName("panel")
         form = QFormLayout(panel)
         form.setContentsMargins(20, 20, 20, 20)
@@ -793,7 +853,7 @@ class CortiTrackWindow(QMainWindow):
 
     def _build_about_page(self):
         layout = QVBoxLayout(self.about_page)
-        panel = QFrame()
+        panel = GradientBorderFrame(COLORS["panel"])
         panel.setObjectName("panel")
         inner = QVBoxLayout(panel)
         inner.setContentsMargins(24, 24, 24, 24)
