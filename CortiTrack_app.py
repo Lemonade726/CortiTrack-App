@@ -326,7 +326,7 @@ class TrendChart(QWidget):
 
         if not self.points:
             painter.setPen(QColor(COLORS["teal_dark"]))
-            painter.setFont(QFont("Arial", 11))
+            painter.setFont(QFont("Arial Rounded MT Bold", 11))
             painter.drawText(
                 self.rect(), Qt.AlignCenter,
                 "Your cortisol trend will appear here"
@@ -360,7 +360,7 @@ class TrendChart(QWidget):
             painter.drawEllipse(point, 3.2, 3.2)
 
         painter.setPen(QColor(COLORS["teal_dark"]))
-        painter.setFont(QFont("Arial", 9))
+        painter.setFont(QFont("Arial Rounded MT Bold", 9))
         painter.drawText(5, top + 5, f"{high:.3g}")
         painter.drawText(5, bottom, f"{low:.3g}")
 
@@ -406,50 +406,98 @@ class HeartWave(QWidget):
         painter.drawPath(path)
 
 
+
 class GradientBorderFrame(QFrame):
-    """A frame with a vertically graded border painted directly by Qt."""
+    """Custom angular panel with a pink-to-purple border."""
 
     def __init__(
-        self, background_color, border_width=5, radius=18, parent=None,
+        self,
+        background_color,
+        border_width=5,
+        radius=18,
+        parent=None,
         background_gradient=None
     ):
         super().__init__(parent)
+
         self.background_color = QColor(background_color)
         self.background_gradient = background_gradient
         self.border_width = border_width
         self.radius = radius
+
         self.setFrameShape(QFrame.NoFrame)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
+    def panel_path(self):
+        # Use the panel's current size.
+        w = self.width()
+        h = self.height()
+
+        # Distance used to cut the corners.
+        cut = min(35, w / 8, h / 8)
+
+        # Define the angular panel shape.
+        path = QPainterPath()
+        path.moveTo(cut, 0)
+        path.lineTo(w - cut, 0)
+        path.lineTo(w, cut)
+        path.lineTo(w, h - cut)
+        path.lineTo(w - cut, h)
+        path.lineTo(cut, h)
+        path.lineTo(0, h - cut)
+        path.lineTo(0, cut)
+        path.closeSubpath()
+
+        return path
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        outer = QRectF(self.rect())
-        inner = outer.adjusted(
-            self.border_width, self.border_width,
-            -self.border_width, -self.border_width
-        )
-        inner_radius = max(0, self.radius - self.border_width)
+        # Draw the outer angular shape.
+        outer = self.panel_path()
 
-        gradient = QLinearGradient(0, 0, 0, self.height())
-        gradient.setColorAt(0, QColor(COLORS["pink"]))
-        gradient.setColorAt(1, QColor(COLORS["purple"]))
+        # Create a slightly smaller shape for the interior.
+        inset = self.border_width
+        w = self.width()
+        h = self.height()
+        cut = min(35, w / 8, h / 8)
+
+        inner = QPainterPath()
+        inner.moveTo(cut + inset, inset)
+        inner.lineTo(w - cut - inset, inset)
+        inner.lineTo(w - inset, cut + inset)
+        inner.lineTo(w - inset, h - cut - inset)
+        inner.lineTo(w - cut - inset, h - inset)
+        inner.lineTo(cut + inset, h - inset)
+        inner.lineTo(inset, h - cut - inset)
+        inner.lineTo(inset, cut + inset)
+        inner.closeSubpath()
+
+        # Draw the pink-to-purple border.
+        border_gradient = QLinearGradient(0, 0, 0, h)
+        border_gradient.setColorAt(0, QColor(COLORS["pink"]))
+        border_gradient.setColorAt(1, QColor(COLORS["purple"]))
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(gradient))
-        painter.drawRoundedRect(outer, self.radius, self.radius)
+        painter.setBrush(QBrush(border_gradient))
+        painter.drawPath(outer)
+
+        # Draw the panel interior.
         if self.background_gradient:
-            background = QLinearGradient(0, inner.top(), 0, inner.bottom())
-            background.setColorAt(
+            fill_gradient = QLinearGradient(0, inset, 0, h - inset)
+            fill_gradient.setColorAt(
                 0, QColor(self.background_gradient[0])
             )
-            background.setColorAt(
+            fill_gradient.setColorAt(
                 1, QColor(self.background_gradient[1])
             )
-            painter.setBrush(QBrush(background))
+            painter.setBrush(QBrush(fill_gradient))
         else:
-            painter.setBrush(self.background_color)
-        painter.drawRoundedRect(inner, inner_radius, inner_radius)
+            painter.setBrush(QBrush(self.background_color))
+
+        painter.drawPath(inner)
+
 
 
 class HeartRatePanel(GradientBorderFrame):
@@ -467,7 +515,7 @@ class HeartRatePanel(GradientBorderFrame):
         )
         self.setObjectName("heartPanel")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setContentsMargins(30, 20, 24, 20)
         layout.setSpacing(8)
 
         self.number = QLabel("—")
@@ -483,6 +531,101 @@ class HeartRatePanel(GradientBorderFrame):
         self.caption.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.caption)
 
+# Custom tabs
+
+class AngularTabButton(QPushButton):
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumSize(135, 72)
+        self.setMouseTracking(True)
+        self.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding
+        )
+
+        # Do not use the standard rectangular button appearance.
+        self.setStyleSheet(
+            "background: transparent; border: none; padding: 0;"
+        )
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+
+        # Slanted sides, like the tabs in the concept image.
+        cut = 20
+
+        path = QPainterPath()
+        path.moveTo(0, 0)
+        path.lineTo(w, 0)
+        path.lineTo(w - cut, h)
+        path.lineTo(cut, h)
+        path.closeSubpath()
+
+        # Active tab matches the turquoise outer frame.
+        if self.isChecked():
+            fill = QColor(COLORS["outer"])
+            text_color = QColor(COLORS["black"])
+        elif self.underMouse():
+            fill = QColor(COLORS["outer"])
+            text_color = QColor(COLORS["black"])
+        else:
+            fill = QColor(COLORS["black"])
+            text_color = QColor(COLORS["white"])
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(fill))
+        painter.drawPath(path)
+
+        # Draw the tab label.
+        painter.setPen(text_color)
+        font = QFont("Arial Rounded MT Bold", 14)
+        font.setBold(True)
+        painter.setFont(font)
+
+        painter.drawText(
+            self.rect().adjusted(8, 0, -8, 0),
+            Qt.AlignCenter,
+            self.text()
+        )
+
+class AngularNavBar(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(72)
+        self.setMinimumWidth(600)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(22, 0, 22, 0)
+        layout.setSpacing(0)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w, h = self.width(), self.height()
+        cut = 32
+
+        path = QPainterPath()
+        path.moveTo(0, 0)
+        path.lineTo(w, 0)
+        path.lineTo(w - cut, h)
+        path.lineTo(cut, h)
+        path.closeSubpath()
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#050505"))
+        painter.drawPath(path)
+
+
 # Main application window
 class CortiTrackWindow(QMainWindow):
     def __init__(self):
@@ -494,8 +637,8 @@ class CortiTrackWindow(QMainWindow):
         self.sensor_thread = None
 
         self.setWindowTitle(APP_NAME)
-        self.resize(1280, 850)
         self.setMinimumSize(960, 680)
+        self.resize(1400, 900)
         if LOGO_PATH.exists():
             self.setWindowIcon(QIcon(str(LOGO_PATH)))
 
@@ -510,21 +653,25 @@ class CortiTrackWindow(QMainWindow):
         central = QWidget()
         central.setObjectName("central")
         self.setCentralWidget(central)
-
+        
+        # Outer layout with margins and spacing
         outer = QVBoxLayout(central)
-        outer.setContentsMargins(14, 14, 14, 14)
-        outer.setSpacing(12)
+        outer.setContentsMargins(0,0,0,0)
+        outer.setSpacing(0)
 
         border = QFrame()
         border.setObjectName("outerFrame")
-        outer.addWidget(border)
+        outer.addWidget(border, 1)
 
         root = QVBoxLayout(border)
-        root.setContentsMargins(18, 14, 18, 18)
-        root.setSpacing(14)
+        root.setContentsMargins(30, 20, 24, 20)
+        root.setSpacing(8)
 
         # Header: logo and navigation
+        
+        # Header: logo and shared navigation ribbon
         header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(12)
 
         logo = QLabel()
@@ -535,21 +682,34 @@ class CortiTrackWindow(QMainWindow):
         else:
             logo.setText("CortiTrack")
             logo.setObjectName("brandFallback")
+
         logo.setMinimumWidth(175)
         header.addWidget(logo)
         header.addStretch(1)
 
-        self.nav_dashboard = QPushButton("CORTISOL")
-        self.nav_readings = QPushButton("READINGS")
-        self.nav_sensor = QPushButton("SENSOR")
-        self.nav_about = QPushButton("ABOUT")
+        # Create the four navigation buttons
+        self.nav_dashboard = AngularTabButton("CORTISOL")
+        self.nav_readings = AngularTabButton("SKIN")
+        self.nav_sensor = AngularTabButton("HEART RATE")
+        self.nav_about = AngularTabButton("OVERVIEW")
+
         self.nav_buttons = [
-            self.nav_dashboard, self.nav_readings, self.nav_sensor, self.nav_about
+            self.nav_dashboard,
+            self.nav_readings,
+            self.nav_sensor,
+            self.nav_about,
         ]
+
+        # Put the buttons INSIDE the shared black ribbon
+        self.nav_ribbon = AngularNavBar()
+        nav_layout = self.nav_ribbon.layout()
+
         for button in self.nav_buttons:
-            button.setCursor(Qt.PointingHandCursor)
-            header.addWidget(button)
+            nav_layout.addWidget(button, 1)
+
+        header.addWidget(self.nav_ribbon, 3)
         root.addLayout(header)
+
 
         self.pages = QStackedWidget()
         root.addWidget(self.pages, 1)
@@ -589,23 +749,22 @@ class CortiTrackWindow(QMainWindow):
                 border-radius: 24px;
             }}
             QLabel#brandFallback {{
-                color: #075A68;
+                color: {COLORS['white']};
                 font-size: 25px;
                 font-weight: 900;
             }}
             QPushButton {{
-                background: {COLORS['black']};
-                color: white;
-                border: 0;
-                border-radius: 5px;
-                padding: 11px 13px;
-                font-size: 12px;
+                background: transparent;
+                color: {COLORS['white']};
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                font-size: 13px;
                 font-weight: 900;
             }}
-            QPushButton:hover {{ color: {COLORS['outer']}; }}
-            QPushButton#navActive {{
-                background: {COLORS['outer']};
-                color: #053E53;
+
+            QPushButton:hover {{
+                color: {COLORS['outer']};
             }}
             QFrame#panel {{
                 background: transparent;
@@ -680,7 +839,9 @@ class CortiTrackWindow(QMainWindow):
         chart_panel = GradientBorderFrame(COLORS["panel"])
         chart_panel.setObjectName("panel")
         chart_layout = QVBoxLayout(chart_panel)
-        chart_layout.setContentsMargins(16, 14, 16, 12)
+        # Leave extra room for the angled panel corners.
+        chart_layout.setContentsMargins(38, 20, 30, 22)
+        chart_layout.setSpacing(8)
 
         title_row = QHBoxLayout()
         chart_title = QLabel("CORTISOL LEVELS")
@@ -702,10 +863,11 @@ class CortiTrackWindow(QMainWindow):
         self.heart_panel = HeartRatePanel()
         layout.addWidget(self.heart_panel, 0, 2, 1, 1)
 
-        info_panel = GradientBorderFrame(COLORS["panel"])
+        info_panel =
+        GradientBorderFrame(COLORS["panel"])
         info_panel.setObjectName("panel")
         info_layout = QVBoxLayout(info_panel)
-        info_layout.setContentsMargins(18, 14, 18, 14)
+        info_layout.setContentsMargins(30, 20, 24, 20)
 
         info_title = QLabel("YOU ARE —!")
         info_title.setObjectName("panelTitle")
@@ -883,9 +1045,8 @@ class CortiTrackWindow(QMainWindow):
     def show_page(self, index):
         self.pages.setCurrentIndex(index)
         for button_index, button in enumerate(self.nav_buttons):
-            button.setObjectName("navActive" if button_index == index else "")
-            button.style().unpolish(button)
-            button.style().polish(button)
+            button.setChecked(button_index == index)
+            button.update()
 
     def update_sensor_fields(self, *_):
         is_bluetooth = self.sensor_source.currentText() == "Bluetooth LE"
@@ -1121,7 +1282,7 @@ def main():
     app = QApplication([])
     app.setApplicationName(APP_NAME)
     window = CortiTrackWindow()
-    window.show()
+    window.showMaximized()
     app.exec_()
 
 
