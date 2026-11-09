@@ -863,8 +863,7 @@ class CortiTrackWindow(QMainWindow):
         self.heart_panel = HeartRatePanel()
         layout.addWidget(self.heart_panel, 0, 2, 1, 1)
 
-        info_panel =
-        GradientBorderFrame(COLORS["panel"])
+        info_panel = GradientBorderFrame(COLORS["panel"])
         info_panel.setObjectName("panel")
         info_layout = QVBoxLayout(info_panel)
         info_layout.setContentsMargins(30, 20, 24, 20)
